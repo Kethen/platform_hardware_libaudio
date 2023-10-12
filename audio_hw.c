@@ -906,6 +906,12 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
 
             adev->out_device = val;
             select_devices(adev);
+            // go into standby in case the route is on another card
+            pthread_mutex_lock(&out->lock);
+            if(!out->standby){
+                do_out_standby(out);
+            }
+            pthread_mutex_unlock(&out->lock);
         }
     }
     pthread_mutex_unlock(&adev->lock);
@@ -1226,6 +1232,12 @@ static int in_set_parameters(struct audio_stream *stream, const char *kvpairs)
 
             adev->in_device = val;
             select_devices(adev);
+            // go into standby in case the route is on another card
+            pthread_mutex_lock(&in->lock);
+            if(!in->standby){
+                do_in_standby(in);
+            }
+            pthread_mutex_unlock(&in->lock);
         }
     }
     pthread_mutex_unlock(&adev->lock);
