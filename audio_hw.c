@@ -305,6 +305,14 @@ int get_format_from_prop(const char *prop){
     return format;
 }
 
+pthread_mutex_t prop_command_lock;
+int run_prop_command(const char *command){
+    pthread_mutex_lock(&prop_command_lock);
+    int ret = system(command);
+    pthread_mutex_unlock(&prop_command_lock);
+    return ret;
+}
+
 void last_ditch_card_and_format_adjustments(unsigned int routing, struct pcm_config *config, int is_input){
     int want_hdmi = property_get_bool("hal.audio.primary.hdmi", !!(routing & AUDIO_DEVICE_OUT_AUX_DIGITAL));
     unsigned int headphone_on = routing & (AUDIO_DEVICE_OUT_WIRED_HEADSET |
@@ -320,42 +328,42 @@ void last_ditch_card_and_format_adjustments(unsigned int routing, struct pcm_con
         const char *format_key = is_input ? "hal.audio.in.hdmi.format" : "hal.audio.out.hdmi.format";
         if (property_get(command_key, prop, NULL)) {
             ALOGI("running bringup command {%s} for hdmi", prop);
-            system(prop);
+            run_prop_command(prop);
         }
         config->format = get_format_from_prop(format_key);
     }
     if (headphone_on) {
         if (property_get("hal.audio.out.headphone.command", prop, NULL)) {
             ALOGI("running bringup command {%s} for headphone", prop);
-            system(prop);
+            run_prop_command(prop);
         }
         config->format = get_format_from_prop("hal.audio.out.headphone.format");
     }
     if (speaker_on) {
         if (property_get("hal.audio.out.speaker.command", prop, NULL)) {
             ALOGI("running bringup command {%s} for speaker", prop);
-            system(prop);
+            run_prop_command(prop);
         }
         config->format = get_format_from_prop("hal.audio.out.speaker.format");
     }
     if (docked) {
         if (property_get("hal.audio.out.dock.command", prop, NULL)) {
             ALOGI("running bringup command {%s} for dock", prop);
-            system(prop);
+            run_prop_command(prop);
         }
         config->format = get_format_from_prop("hal.audio.out.dock.format");
     }
     if (main_mic_on) {
         if (property_get("hal.audio.in.mic.command", prop, NULL)) {
             ALOGI("running bringup command {%s} for mic", prop);
-            system(prop);
+            run_prop_command(prop);
         }
         config->format = get_format_from_prop("hal.audio.in.mic.format");
     }
     if (headset_mic_on) {
         if (property_get("hal.audio.in.headset.command", prop, NULL)) {
             ALOGI("running bringup command {%s} for headset mic", prop);
-            system(prop);
+            run_prop_command(prop);
         }
         config->format = get_format_from_prop("hal.audio.in.headset.format");
     }
@@ -1417,6 +1425,12 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
 
     out->standby = true;
 
+    int res = pthread_mutex_init(&(out->lock), NULL);
+    if(res != 0){
+        free(out);
+        return -ENOMEM;
+    }
+
     *stream_out = &out->stream;
     return 0;
 
@@ -1428,7 +1442,11 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
 static void adev_close_output_stream(struct audio_hw_device *dev __unused,
                                      struct audio_stream_out *stream)
 {
+    struct stream_out *out = (struct stream_out *)stream;
     out_standby(&stream->common);
+
+    pthread_mutex_destroy(&(out->lock));
+
     free(stream);
 }
 
@@ -1562,6 +1580,12 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
     in->requested_rate = config->sample_rate;
     in->pcm_config = pcm_config_in; /* default PCM config */
 
+    int res = pthread_mutex_init(&(in->lock), NULL);
+    if(res != 0){
+        free(in);
+        return -ENOMEM;
+    }
+
     *stream_in = &in->stream;
     return 0;
 }
@@ -1570,8 +1594,10 @@ static void adev_close_input_stream(struct audio_hw_device *dev __unused,
                                    struct audio_stream_in *stream)
 {
     struct stream_in *in = (struct stream_in *)stream;
-
     in_standby(&stream->common);
+
+    pthread_mutex_destroy(&(in->lock));
+
     free(stream);
 }
 
@@ -1585,6 +1611,9 @@ static int adev_close(hw_device_t *device)
     struct audio_device *adev = (struct audio_device *)device;
 
     audio_route_free(adev->ar);
+
+    pthread_mutex_destroy(&(adev->lock));
+    pthread_mutex_destroy(&prop_command_lock);
 
     free(device);
     return 0;
@@ -1627,6 +1656,17 @@ static int adev_open(const hw_module_t* module, const char* name,
 
     adev->out_device = AUDIO_DEVICE_OUT_SPEAKER;
     adev->in_device = AUDIO_DEVICE_IN_BUILTIN_MIC & ~AUDIO_DEVICE_BIT_IN;
+
+    int res = pthread_mutex_init(&(adev->lock), NULL);
+    if(res != 0){
+        free(adev);
+        return -ENOMEM;
+    }
+    res = pthread_mutex_init(&prop_command_lock, NULL);
+    if(res != 0){
+        free(adev);
+        return -ENOMEM;
+    }
 
     *device = &adev->hw_device.common;
 
