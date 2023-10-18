@@ -213,37 +213,37 @@ struct snd_pcm_info *select_card(unsigned int device, unsigned int flags, unsign
             namelist[0] = calloc(1, sizeof(struct dirent));
             strncpy(namelist[0]->d_name, prop, sizeof(namelist[0]->d_name) - 1);
             n = 1;
-        } else if (headphone_on && property_get("hal.audio.out.headphone", prop, NULL)) {
+        } else if (!is_input && headphone_on && property_get("hal.audio.out.headphone", prop, NULL)) {
             ALOGI("using headphone specific card %s from property", prop);
             namelist = malloc(sizeof(struct dirent *));
             namelist[0] = calloc(1, sizeof(struct dirent));
             strncpy(namelist[0]->d_name, prop, sizeof(namelist[0]->d_name) - 1);
             n = 1;
-        } else if (speaker_on && property_get("hal.audio.out.speaker", prop, NULL)) {
+        } else if (!is_input && speaker_on && property_get("hal.audio.out.speaker", prop, NULL)) {
             ALOGI("using speaker specific card %s from property", prop);
             namelist = malloc(sizeof(struct dirent *));
             namelist[0] = calloc(1, sizeof(struct dirent));
             strncpy(namelist[0]->d_name, prop, sizeof(namelist[0]->d_name) - 1);
             n = 1;
-        } else if (docked && property_get("hal.audio.out.dock", prop, NULL)) {
+        } else if (!is_input && docked && property_get("hal.audio.out.dock", prop, NULL)) {
             ALOGI("using dock specific card %s from property", prop);
             namelist = malloc(sizeof(struct dirent *));
             namelist[0] = calloc(1, sizeof(struct dirent));
             strncpy(namelist[0]->d_name, prop, sizeof(namelist[0]->d_name) - 1);
             n = 1;
-        } else if (main_mic_on && property_get("hal.audio.in.mic", prop, NULL)) {
+        } else if (is_input && main_mic_on && property_get("hal.audio.in.mic", prop, NULL)) {
             ALOGI("using mic specific card %s from property", prop);
             namelist = malloc(sizeof(struct dirent *));
             namelist[0] = calloc(1, sizeof(struct dirent));
             strncpy(namelist[0]->d_name, prop, sizeof(namelist[0]->d_name) - 1);
             n = 1;
-        } else if (headset_mic_on && property_get("hal.audio.in.headset", prop, NULL)) {
+        } else if (is_input && headset_mic_on && property_get("hal.audio.in.headset", prop, NULL)) {
             ALOGI("using headset mic specific card %s from property", prop);
             namelist = malloc(sizeof(struct dirent *));
             namelist[0] = calloc(1, sizeof(struct dirent));
             strncpy(namelist[0]->d_name, prop, sizeof(namelist[0]->d_name) - 1);
             n = 1;
-        } else if (property_get(d ? "hal.audio.in" : "hal.audio.out", prop, NULL)) {
+        } else if (property_get(is_input ? "hal.audio.in" : "hal.audio.out", prop, NULL)) {
             ALOGI("using %s from property", prop);
             namelist = malloc(sizeof(struct dirent *));
             namelist[0] = calloc(1, sizeof(struct dirent));
@@ -332,35 +332,35 @@ void last_ditch_card_and_format_adjustments(unsigned int routing, struct pcm_con
         }
         config->format = get_format_from_prop(format_key);
     }
-    if (headphone_on) {
+    if (!is_input && headphone_on) {
         if (property_get("hal.audio.out.headphone.command", prop, NULL)) {
             ALOGI("running bringup command {%s} for headphone", prop);
             run_prop_command(prop);
         }
         config->format = get_format_from_prop("hal.audio.out.headphone.format");
     }
-    if (speaker_on) {
+    if (!is_input && speaker_on) {
         if (property_get("hal.audio.out.speaker.command", prop, NULL)) {
             ALOGI("running bringup command {%s} for speaker", prop);
             run_prop_command(prop);
         }
         config->format = get_format_from_prop("hal.audio.out.speaker.format");
     }
-    if (docked) {
+    if (!is_input && docked) {
         if (property_get("hal.audio.out.dock.command", prop, NULL)) {
             ALOGI("running bringup command {%s} for dock", prop);
             run_prop_command(prop);
         }
         config->format = get_format_from_prop("hal.audio.out.dock.format");
     }
-    if (main_mic_on) {
+    if (is_input && main_mic_on) {
         if (property_get("hal.audio.in.mic.command", prop, NULL)) {
             ALOGI("running bringup command {%s} for mic", prop);
             run_prop_command(prop);
         }
         config->format = get_format_from_prop("hal.audio.in.mic.format");
     }
-    if (headset_mic_on) {
+    if (is_input && headset_mic_on) {
         if (property_get("hal.audio.in.headset.command", prop, NULL)) {
             ALOGI("running bringup command {%s} for headset mic", prop);
             run_prop_command(prop);
